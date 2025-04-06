@@ -355,7 +355,8 @@ class CrochetApp:
         self.latest_frame = None
         self.floating_emojis = []
         self.canvas_emojis = None
-        
+        self.teach_button = tk.Button(root, text="Teach Amigurumi 🧠", command=self.ask_amigurumi_name)
+        self.teach_button.pack(pady=5)
         # Create a notebook with tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -803,29 +804,50 @@ class CrochetApp:
         if self.cap is not None and self.cap.isOpened():
             ret, frame = self.cap.read()
             if ret:
-                # If it's a video file and reaches the end, loop back
-                if not self.cap.isOpened() or frame is None:
-                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    ret, frame = self.cap.read()
-                
                 self.latest_frame = frame.copy()
-                
+
                 # Resize for display
                 frame = cv2.resize(frame, (640, 480))
-                # Convert to PhotoImage
+
+                # Convert BGR to RGB for Tkinter display
                 img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 img = Image.fromarray(img)
                 imgtk = ImageTk.PhotoImage(image=img)
-                
-                # Update video label
-                self.video_label.imgtk = imgtk
+
+                # Update the Tkinter label with the new image
+                self.video_label.imgtk = imgtk  # Prevent garbage collection
                 self.video_label.configure(image=imgtk)
+            else:
+                print("Failed to grab frame.")
         else:
-            # Handle the case where the capture is not available
             self.latest_frame = None
-            # Optionally, display a placeholder image or message
             print("No video source available.")
-            
+
+        # Schedule the next frame update (every ~15 ms)
+        self.video_label.after(15, self.update_frame)
+
+    def ask_amigurumi_name(self):
+        if self.latest_frame is not None:
+            name = simpledialog.askstring("🧶 What is this?", "What amigurumi is this?")
+
+            if name:
+                save_path = f"dataset/{name.lower()}/"
+                os.makedirs(save_path, exist_ok=True)
+
+                timestamp = int(time.time())
+                filename = os.path.join(save_path, f"{timestamp}.jpg")
+                cv2.imwrite(filename, self.latest_frame)
+
+                print(f"[✔] Saved to {filename}")
+            else:
+                print("❌ You cancelled the input.")
+        else:
+            print("⚠️ No frame available to save.")
+
+    def __del__(self):
+        if self.cap.isOpened():
+            self.cap.release()
+                    
     def get_latest_frame(self):
         if self.latest_frame is None:
             return False, None
